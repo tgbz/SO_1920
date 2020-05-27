@@ -1,0 +1,9 @@
+1 - os utilizadores são os existentes no sistema operativo? ou é a aplicação que faz gestão independente dos seus utilizadores?
+
+2 - A aplicação Servidor deverá ser uma aplicação de sistema, com script de arranque? para isso é necessário "root" durante a instalação.
+
+3 - Podemos usar variaveis globais de Ambiente, tais como HOME= e USER=?
+
+4 - A compressão fica do lado do cliente ou do lado do servidor? (aumentar a carga no cliente, ou aumentar no servidor?)
+
+5 - Posso usar execs com chamadas a todos os 77 comandos abordados na bibliografia?

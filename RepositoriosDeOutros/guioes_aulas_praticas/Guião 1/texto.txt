@@ -1,0 +1,2 @@
+Isto é um teste para o readln.
+Não imprimir esta linha!

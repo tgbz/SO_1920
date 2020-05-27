@@ -1,0 +1,145 @@
+
+int main3(){
+  int fd, loopT, pid, i, max, status;
+  char *servidorFIFO = "teste/fifos/srv";
+  char buffer[128];
+  char *str;
+  
+  /*    sprintf(buffer, "%s%d", servidorFIFO, getpid()); cria string para abrir buffer /tmp/sobuserv/7850 com PID do servidor*/
+  loopT = 1;
+  max = 0;
+  signal(SIGINT,sigHandler);
+  
+  if ((mkfifo(servidorFIFO, 0666)) == 0) {
+     printf("arrancou servidor com id: %d\n", getpid());
+  }
+  else {
+    printf("Erro de FIFO");
+    loopT = 0;
+  }
+  
+  while(loopT){
+    for (i=0; i<128; i++) buffer[i] = '\0';
+    fd = open(servidorFIFO, O_RDONLY);
+    while (read(fd, buffer, 128) > 0) {
+      str = strtok(buffer, "\r\n");
+      pid = atoi(strtok(str, " "));
+    }
+    close(fd);
+    if (max < 5){
+      max++;
+      if(fork()==0){
+        abreConexaoCli(pid);
+        _exit(0);
+      }
+      else {
+        wait(&status);
+        max--;
+      }
+    }
+    else {
+      printf("MAX: %d\n", max);
+      kill(pid,SIGUSR2);
+    }
+  }
+  unlink(servidorFIFO);
+  return 0;
+}
+
+
+
+int main(){
+  int fd, loopT, pid, i, max, status;
+  char *servidorFIFO = "teste/fifos/srv";
+  char buffer[128];
+  char *str;
+  
+  /*    sprintf(buffer, "%s%d", servidorFIFO, getpid()); cria string para abrir buffer /tmp/sobuserv/7850 com PID do servidor*/
+  loopT = 1;
+  max = 0;
+  signal(SIGINT,sigHandler);
+  
+  if ((mkfifo(servidorFIFO, 0666)) == 0) {
+     printf("arrancou servidor com id: %d\n", getpid());
+  }
+  else {
+    printf("Erro de FIFO");
+    loopT = 0;
+  }
+  
+  while(loopT){
+    for (i=0; i<128; i++) buffer[i] = '\0';
+    fd = open(servidorFIFO, O_RDONLY);
+    while (read(fd, buffer, 128) > 0) {
+      str = strtok(buffer, "\r\n");
+      pid = atoi(strtok(str, " "));
+    }
+    close(fd);
+    if (max < 5){
+      max++;
+      if(fork()==0){
+        abreConexaoCli(pid);
+        _exit(0);
+      }
+      else {
+        wait(&status);
+        max--;
+      }
+    }
+    else {
+      printf("MAX: %d\n", max);
+      kill(pid,SIGUSR2);
+    }
+  }
+  unlink(servidorFIFO);
+  return 0;
+}
+
+
+int main(){
+  int fd, loopT, pid, i, max, status;
+  char *servidorFIFO = "teste/fifos/srv";
+  char buffer[128];
+  char *str;
+  
+  /*    sprintf(buffer, "%s%d", servidorFIFO, getpid()); cria string para abrir buffer /tmp/sobuserv/7850 com PID do servidor*/
+  loopT = 1;
+  max = 0;
+  signal(SIGINT,sigHandler);
+  
+  if ((mkfifo(servidorFIFO, 0666)) == 0) {
+     printf("arrancou servidor com id: %d\n", getpid());
+  }
+  else {
+    printf("Erro de FIFO");
+    loopT = 0;
+  }
+  
+  while(loopT){
+    for (i=0; i<128; i++) buffer[i] = '\0';
+    fd = open(servidorFIFO, O_RDONLY);
+    while (read(fd, buffer, 128) > 0) {
+      str = strtok(buffer, "\r\n");
+      pid = atoi(strtok(str, " "));
+    }
+    close(fd);
+    if (max < 5){
+      max++;
+      if(fork()==0){
+        abreConexaoCli(pid);
+        _exit(0);
+      }
+      else {
+        wait(&status);
+        max--;
+      }
+    }
+    else {
+      printf("MAX: %d\n", max);
+      kill(pid,SIGUSR2);
+    }
+  }
+  unlink(servidorFIFO);
+  return 0;
+}
+
