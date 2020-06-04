@@ -13,7 +13,7 @@
 typedef struct instructions
 {
     int n;
-    int estado; //[0- concluido, 1-inativo, 2-execução]
+    int estado; //[0- concluido, 1-max Inativo, 2-max Exec, 3-execução]
     char *task;
     time_t creationTime;
     pid_t pid;
@@ -60,7 +60,7 @@ typedef struct instructions
 Instructions addTarefa(Instructions tarefas, char* task) {
     Instructions newTarefa = malloc(sizeof(struct instructions));
 	newTarefa->n = (tarefas==NULL) ? 1 : (tarefas->n)+1;
-    newTarefa->estado = 2;
+    newTarefa->estado = 3;
     time(&newTarefa->creationTime);
     newTarefa->task = strdup(task);
     newTarefa->next = tarefas;
@@ -70,15 +70,49 @@ Instructions addTarefa(Instructions tarefas, char* task) {
 
 void printInstructions(Instructions tarefas) {
     if(tarefas!=NULL) {
-        printf("Numero: %d\n",tarefas->n);
-        printf("Estado: %d\n",tarefas->estado);
-        printf("Task: %s\n",tarefas->task);
-        printf("PID: %d\n\n",tarefas->pid);
+        printf("Numero: %d   ",tarefas->n);
+        printf("Estado: %d   ",tarefas->estado);
+        printf("Task: %s   ",tarefas->task);
+        printf("PID: %d\n",tarefas->pid);
         printInstructions(tarefas->next);
     }
     else {
-        printf("Nothing to print\n");
+        printf("Fim da Lista\n");
     }
+}
+
+Instructions changeTarefaState(Instructions tarefas, int nTarefa, int estado) {
+    if(tarefas!=NULL)
+        if (tarefas->n != nTarefa )
+            tarefas->next = changeTarefaState(tarefas->next, nTarefa, estado);
+        else if(tarefas->n == nTarefa)
+            tarefas->estado = estado;
+    return tarefas;
+}
+
+void makeList(Instructions tarefas, int fd) {
+    if(tarefas!=NULL) {
+        if(tarefas->estado==3) {
+            char task[1024];
+            sprintf(task,"#%d: %s\n",tarefas->n,tarefas->task);
+            write(fd, task, strlen(task));
+        }
+        makeList(tarefas->next,fd);
+    }
+    else write(fd,"Fim do comando Listar\n", 22);
+}
+
+void makeHistorico(Instructions tarefas, int fd) {
+    if(tarefas!=NULL) {
+        char task[1024];
+        if(tarefas->estado==0) sprintf(task,"#%d, concluida: %s\n",tarefas->n,tarefas->task);
+        else if(tarefas->estado==1) sprintf(task, "#%d, max inactividade: %s\n",tarefas->n,tarefas->task);
+        else if(tarefas->estado==2) sprintf(task, "#%d, max execução: %s\n",tarefas->n,tarefas->task);
+        
+        if(tarefas->estado!=3) write(fd, task, strlen(task));
+        makeHistorico(tarefas->next,fd);
+    }
+    else write(fd,"Fim do comando Historico\n", 22);
 }
 
  
@@ -218,8 +252,15 @@ void interpretMessage(Instructions *tarefas, char *message)
     }
     array[i] = NULL;
 
+    if(strcmp(array[0], "executar") == 0) {
+        *tarefas = addTarefa(*tarefas, array[1]);
+    }
+    /*if(strcmp(array[0], "historico") == 0) {
+        *tarefas = changeTarefaState(*tarefas, 1, 0);
+        *tarefas = changeTarefaState(*tarefas, 2, 1);
+        *tarefas = changeTarefaState(*tarefas, 3, 2);
+    }*/
     
-    *tarefas = addTarefa(*tarefas, array[1]);
     pid_t son = fork();
     if(son==0) {
         if (strcmp(array[0], "executar") == 0)
@@ -247,6 +288,34 @@ void interpretMessage(Instructions *tarefas, char *message)
                 close(saved_stdout);*/
             }
             //printf("%s %s %s\n",array[0],array[1],array[2]);
+        }
+        else if (strcmp(array[0],"listar") == 0) {
+            char pipeName[1024];
+            sprintf(pipeName, "/tmp/%s", array[1]);
+            if ((fd = open(pipeName, O_WRONLY)) == -1)
+            {
+                perror("Erro ao abrir pipe com nome");
+                return;
+            }
+            else
+            {
+                makeList(*tarefas,fd);
+                close(fd);
+            }   
+        }
+        else if (strcmp(array[0],"historico") == 0) {
+            char pipeName[1024];
+            sprintf(pipeName, "/tmp/%s", array[1]);
+            if ((fd = open(pipeName, O_WRONLY)) == -1)
+            {
+                perror("Erro ao abrir pipe com nome");
+                return;
+            }
+            else
+            {
+                makeHistorico(*tarefas,fd);
+                close(fd);
+            }   
         }
         else
             printf("%s %s\n", array[0], array[1]);
@@ -286,7 +355,7 @@ int main(int argc, char const *argv[])
             printf("%s", buffer);
             interpretMessage(&tarefas, buffer);
 
-            //printInstructions(tarefas);
+            printInstructions(tarefas);
         }
         close(fd);
     }

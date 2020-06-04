@@ -84,6 +84,10 @@ void sendMessage(int qt, const char * args[], int pipeNumber) {
 }
 
 void interpretaArgs(int qt, const char  *args[]) {
+    pid_t pid = getpid();
+    char pipeName[1024];
+    sprintf(pipeName,"/tmp/%d",pid);
+
     if (strcmp(args[0],"tempo-inactividade")==0) {
         if (qt!=2 || notNumber(args[1])) {
             printf("\nAlgo está errado\nAJUDA:");
@@ -101,9 +105,6 @@ void interpretaArgs(int qt, const char  *args[]) {
             printf("\nAlgo está errado\nAJUDA:");
             ajuda();
         } else {
-            pid_t pid = getpid();
-            char pipeName[1024];
-            sprintf(pipeName,"/tmp/%d",pid);
             mkfifo(pipeName, 0666);
             sendMessage(qt,args,pid);
             readFromPipe(pipeName);
@@ -114,7 +115,9 @@ void interpretaArgs(int qt, const char  *args[]) {
             printf("\nAlgo está errado\nAJUDA:");
             ajuda();
         } else{
-            sendMessage(qt,args,-1);
+            mkfifo(pipeName, 0666);
+            sendMessage(qt,args,pid);
+            readFromPipe(pipeName);
             //HAS RESPONSE
         }
     } else if (strcmp(args[0],"terminar")==0) {
@@ -128,7 +131,9 @@ void interpretaArgs(int qt, const char  *args[]) {
             printf("\nAlgo está errado\nAJUDA:");
             ajuda();
         } else{
-            sendMessage(qt,args,-1);
+            mkfifo(pipeName, 0666);
+            sendMessage(qt,args,pid);
+            readFromPipe(pipeName);
             //HAS RESPONSE
         }
     } else if (strcmp(args[0],"ajuda")==0) {
