@@ -19,7 +19,7 @@ typedef struct instructions
     pid_t pid;
     //char *output;
     struct instructions *next;
-}* Instructions;
+} * Instructions;
 
 Instructions tarefas;
 pid_t pidGlobal;
@@ -60,9 +60,16 @@ pid_t pidGlobal;
 }
  */
 
-Instructions addTarefa(Instructions tarefas, char* task) {
+void clearBuf(char* b){
+    int i;
+    for (i = 0; i < BUFFER_SIZE; i++)
+        b[i] = '\0';
+}
+
+Instructions addTarefa(Instructions tarefas, char *task)
+{
     Instructions newTarefa = malloc(sizeof(struct instructions));
-	newTarefa->n = (tarefas==NULL) ? 1 : (tarefas->n)+1;
+    newTarefa->n = (tarefas == NULL) ? 1 : (tarefas->n) + 1;
     newTarefa->estado = 3;
     time(&newTarefa->creationTime);
     newTarefa->task = strdup(task);
@@ -71,56 +78,114 @@ Instructions addTarefa(Instructions tarefas, char* task) {
     return newTarefa;
 }
 
-void printInstructions(Instructions tarefas) {
-    if(tarefas!=NULL) {
-        printf("Numero: %d   ",tarefas->n);
-        printf("Estado: %d   ",tarefas->estado);
-        printf("Task: %s   ",tarefas->task);
-        printf("PID: %d\n",tarefas->pid);
+void printInstructions(Instructions tarefas)
+{
+    if (tarefas != NULL)
+    {
+        printf("Numero: %d   ", tarefas->n);
+        printf("Estado: %d   ", tarefas->estado);
+        printf("Task: %s   ", tarefas->task);
+        printf("PID: %d\n", tarefas->pid);
         printInstructions(tarefas->next);
     }
-    else {
+    else
+    {
         printf("Fim da Lista\n");
     }
 }
 
-Instructions changeTarefaState(Instructions tarefas, int nTarefa, int estado) {
-    if(tarefas!=NULL)
-        if (tarefas->n != nTarefa )
+Instructions changeTarefaState(Instructions tarefas, int nTarefa, int estado)
+{
+    if (tarefas != NULL)
+        if (tarefas->n != nTarefa)
             tarefas->next = changeTarefaState(tarefas->next, nTarefa, estado);
-        else if(tarefas->n == nTarefa)
+        else if (tarefas->n == nTarefa)
             tarefas->estado = estado;
     return tarefas;
 }
 
-void makeList(Instructions tarefas, int fd) {
-    if(tarefas!=NULL) {
-        if(tarefas->estado==3) {
+void makeList(Instructions tarefas, int fd)
+{
+    if (tarefas != NULL)
+    {
+        if (tarefas->estado == 3)
+        {
             char task[1024];
-            sprintf(task,"#%d: %s\n",tarefas->n,tarefas->task);
+            sprintf(task, "#%d: %s\n", tarefas->n, tarefas->task);
             write(fd, task, strlen(task));
         }
-        makeList(tarefas->next,fd);
+        makeList(tarefas->next, fd);
     }
-    else write(fd,"Fim do comando Listar\n", 22);
+    else
+        write(fd, "Fim do comando Listar\n", 22);
 }
 
-void makeHistorico(Instructions tarefas, int fd) {
-    if(tarefas!=NULL) {
+void makeHistorico(Instructions tarefas, int fd)
+{
+    if (tarefas != NULL)
+    {
         char task[1024];
-        if(tarefas->estado==0) sprintf(task,"#%d, concluida: %s\n",tarefas->n,tarefas->task);
-        else if(tarefas->estado==1) sprintf(task, "#%d, max inactividade: %s\n",tarefas->n,tarefas->task);
-        else if(tarefas->estado==2) sprintf(task, "#%d, max execução: %s\n",tarefas->n,tarefas->task);
-        
-        if(tarefas->estado!=3) write(fd, task, strlen(task));
-        makeHistorico(tarefas->next,fd);
+        if (tarefas->estado == 0)
+            sprintf(task, "#%d, concluida: %s\n", tarefas->n, tarefas->task);
+        else if (tarefas->estado == 1)
+            sprintf(task, "#%d, max inactividade: %s\n", tarefas->n, tarefas->task);
+        else if (tarefas->estado == 2)
+            sprintf(task, "#%d, max execução: %s\n", tarefas->n, tarefas->task);
+
+        if (tarefas->estado != 3)
+            write(fd, task, strlen(task));
+        makeHistorico(tarefas->next, fd);
     }
-    else write(fd,"Fim do comando Historico\n", 22);
+    else
+        write(fd, "Fim do comando Historico\n", 25);
 }
 
-void timeout_handler (int signum) {
-    kill(pidGlobal, SIGTERM);
-    perror("teste");
+void timeout_handler(int signum)
+{
+    if (signum == SIGALRM)
+    {
+        Instructions aux = tarefas;
+        while (aux != NULL)
+        {
+            if (aux->estado == 3)
+            {
+                aux->estado = 2;
+                kill(aux->pid, SIGKILL);
+                printf("Tarefa excedeu tempo maximo #%d\n", aux->n);
+                break;
+            }
+            else
+                aux = aux->next;
+        }
+    }
+}
+
+void sign_concluir(int signum)
+{
+    if (signum == SIGUSR1)
+    {
+
+        // Instructions aux = tarefas;
+        // while (aux != NULL)
+        // {
+        //     if (aux->pid == getppid())
+        //     {
+        //         aux->estado = 0;
+        //         break;
+        //     }
+        //     else
+        //         aux = aux->next;
+        // }
+
+    }
+}
+
+void sign_createAlarm(int signum)
+{
+    if (signum == SIGUSR2)
+    {
+        alarm(10);
+    }
 }
 
 int exec_command(char *command)
@@ -240,7 +305,7 @@ int exec_pipes(char *cmds)
     }
 }
 
-void interpretMessage(Instructions *tarefas, char *message)
+void interpretMessage(Instructions *tarefas, char *message, int fs[])
 {
     char *array[4];
     int i = 0;
@@ -258,7 +323,8 @@ void interpretMessage(Instructions *tarefas, char *message)
     }
     array[i] = NULL;
 
-    if(strcmp(array[0], "executar") == 0) {
+    if (strcmp(array[0], "executar") == 0)
+    {
         *tarefas = addTarefa(*tarefas, array[1]);
     }
     /*if(strcmp(array[0], "historico") == 0) {
@@ -266,16 +332,20 @@ void interpretMessage(Instructions *tarefas, char *message)
         *tarefas = changeTarefaState(*tarefas, 2, 1);
         *tarefas = changeTarefaState(*tarefas, 3, 2);
     }*/
-    
+
     pid_t son = fork();
     pidGlobal = son;
-    if(son==0) {
+    if (son == 0)
+    {
         
+
+
         if (strcmp(array[0], "executar") == 0)
         {
+
             char pipeName[1024];
             sprintf(pipeName, "/tmp/%s", array[2]);
-            
+
             if ((fd = open(pipeName, O_WRONLY)) == -1)
             {
                 perror("Erro ao abrir pipe com nome");
@@ -283,12 +353,26 @@ void interpretMessage(Instructions *tarefas, char *message)
             }
             else
             {
+                if (signal(SIGUSR1, sign_concluir) < 0)
+                {
+                    perror("signal SIGUSR1");
+                    exit(-1);
+                }
                 int n = (*tarefas)->n;
                 char stringTarefa[1024];
                 sprintf(stringTarefa, "nova tarefa #%d\n", n);
                 write(fd, stringTarefa, strlen(stringTarefa));
                 close(fd);
+                //kill(son, SIGUSR2);
                 exec_pipes(array[1]);
+                //kill(son, SIGUSR1);
+                wait(0);
+                close(fs[0]);  
+                close(1);
+                dup(fs[1]);
+                char error[1024];
+                sprintf(error, "%d", getpid());
+                write(1, error, strlen(error));
                 //Desligar o stdout do servidor;
                 /*int saved_stdout;
                 saved_stdout = dup(1);
@@ -299,7 +383,8 @@ void interpretMessage(Instructions *tarefas, char *message)
             }
             //printf("%s %s %s\n",array[0],array[1],array[2]);
         }
-        else if (strcmp(array[0],"listar") == 0) {
+        else if (strcmp(array[0], "listar") == 0)
+        {
             char pipeName[1024];
             sprintf(pipeName, "/tmp/%s", array[1]);
             if ((fd = open(pipeName, O_WRONLY)) == -1)
@@ -309,11 +394,12 @@ void interpretMessage(Instructions *tarefas, char *message)
             }
             else
             {
-                makeList(*tarefas,fd);
+                makeList(*tarefas, fd);
                 close(fd);
-            }   
+            }
         }
-        else if (strcmp(array[0],"historico") == 0) {
+        else if (strcmp(array[0], "historico") == 0)
+        {
             char pipeName[1024];
             sprintf(pipeName, "/tmp/%s", array[1]);
             if ((fd = open(pipeName, O_WRONLY)) == -1)
@@ -323,32 +409,69 @@ void interpretMessage(Instructions *tarefas, char *message)
             }
             else
             {
-                makeHistorico(*tarefas,fd);
+                makeHistorico(*tarefas, fd);
                 close(fd);
-            }   
+            }
         }
         else
             printf("%s %s\n", array[0], array[1]);
         _exit(0);
     }
-    else {
-        if (signal(SIGALRM, timeout_handler) < 0){
-                perror("signal SIGALRM");
-                exit(-1);
-        }
-        printf("%d\n",pidGlobal);
-        alarm(3);
-        (*tarefas)->pid = son;
+    else
+    {
+        (*tarefas)->pid = son; 
+
+        //alarm(10);
     }
+}
+
+void concludeInstructions(int fs[]){
+    char buffer[BUFFER_SIZE];
+    
+
+    while (read(fs[0], buffer, BUFFER_SIZE))
+    {
+        printf("PID: %d\n", atoi(buffer));
+        clearBuf(buffer);
+        Instructions aux = tarefas;
+        while (aux != NULL)
+        {
+            if (aux->pid == atoi(buffer))
+            {
+                aux->estado = 0;
+                break;
+            }
+            else
+                aux = aux->next;
+        }
+        clearBuf(buffer);
+    }
+    
 }
 
 int main(int argc, char const *argv[])
 {
+    int fs[2]; 
+    pipe(fs);
+    close(0);
+    close(fs[1]);
+    dup(fs[0]);
     int fd;
     int lineChars;
     char buffer[BUFFER_SIZE];
     tarefas = NULL;
 
+    if (signal(SIGALRM, timeout_handler) < 0)
+    {
+        perror("signal SIGALRM");
+        exit(-1);
+    }
+
+    if (signal(SIGUSR2, sign_createAlarm) < 0)
+    {
+        perror("signal SIGUSR2");
+        exit(-1);
+    }
 
     //Criar fork com loop em background para verificar tarefas
 
@@ -370,8 +493,8 @@ int main(int argc, char const *argv[])
             lineChars = read(fd, buffer, BUFFER_SIZE);
             buffer[lineChars] = '\0';
             printf("%s", buffer);
-            interpretMessage(&tarefas, buffer);
-
+            interpretMessage(&tarefas, buffer, fs);
+            concludeInstructions(fs);
             printInstructions(tarefas);
         }
         close(fd);
