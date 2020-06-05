@@ -21,6 +21,9 @@ typedef struct instructions
     struct instructions *next;
 }* Instructions;
 
+Instructions tarefas;
+pid_t pidGlobal;
+
 /* constructInstructions(struct instructions a, char* pipeNumber, char* command, char* task, int estado, int tempoInactivo){
     a->pipeNumber = pipeNumber;
     a->com
@@ -115,7 +118,10 @@ void makeHistorico(Instructions tarefas, int fd) {
     else write(fd,"Fim do comando Historico\n", 22);
 }
 
- 
+void timeout_handler (int signum) {
+    kill(pidGlobal, SIGTERM);
+    perror("teste");
+}
 
 int exec_command(char *command)
 {
@@ -262,11 +268,14 @@ void interpretMessage(Instructions *tarefas, char *message)
     }*/
     
     pid_t son = fork();
+    pidGlobal = son;
     if(son==0) {
+        
         if (strcmp(array[0], "executar") == 0)
         {
             char pipeName[1024];
             sprintf(pipeName, "/tmp/%s", array[2]);
+            
             if ((fd = open(pipeName, O_WRONLY)) == -1)
             {
                 perror("Erro ao abrir pipe com nome");
@@ -278,6 +287,7 @@ void interpretMessage(Instructions *tarefas, char *message)
                 char stringTarefa[1024];
                 sprintf(stringTarefa, "nova tarefa #%d\n", n);
                 write(fd, stringTarefa, strlen(stringTarefa));
+                close(fd);
                 exec_pipes(array[1]);
                 //Desligar o stdout do servidor;
                 /*int saved_stdout;
@@ -321,8 +331,15 @@ void interpretMessage(Instructions *tarefas, char *message)
             printf("%s %s\n", array[0], array[1]);
         _exit(0);
     }
-    else 
+    else {
+        if (signal(SIGALRM, timeout_handler) < 0){
+                perror("signal SIGALRM");
+                exit(-1);
+        }
+        printf("%d\n",pidGlobal);
+        alarm(3);
         (*tarefas)->pid = son;
+    }
 }
 
 int main(int argc, char const *argv[])
@@ -330,7 +347,7 @@ int main(int argc, char const *argv[])
     int fd;
     int lineChars;
     char buffer[BUFFER_SIZE];
-    Instructions tarefas = NULL;
+    tarefas = NULL;
 
 
     //Criar fork com loop em background para verificar tarefas
