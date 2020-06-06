@@ -1,93 +1,114 @@
+#include <signal.h>
 #include <stdio.h>
 #include <stdlib.h>
-#include <sys/types.h> 
+#include <string.h>
+#include <sys/types.h>
+#include <sys/wait.h>
 #include <unistd.h>
-#include <signal.h> 
 
 
-int grep (char* word, char* file, int i) {
+int *pids;
+int files_count;
+int timeout;
 
-    int pid;
-    
-    if ((pid = fork()) == 0){
-
-        printf("[Process %d] pid = %d | file = %s\n", i, getpid(), file);
-
-        if (execlp("grep", "grep", word, file, NULL) < 0) perror("exec");
-
-        _exit(-1);
+void timeout_handler(int signum) {
+    for (int i = 0; i < files_count; i++) {
+        printf("killing grep %d\n", pids[i]);
+        
+        if (pids[i] > 0) { 
+            kill(pids[i], SIGKILL);
+        }
     }
 
-    return pid;
+    timeout = 1;
 }
 
 
-int main (int argc, char* argv[]){
+// Exit status:
+// 0 -> found
+// 1 -> not found
+// >1 -> error
+int main(int argc, char *argv[]) {
 
-    if (argc < 3){ 
-        printf("Insuficient Arguments!\n");
-        return 1;
+    if (argc < 2) {
+        perror("Usage: multigrep <palavra> <file> ...");
+        exit(2);
     }
 
-    int filesCount = argc - 2;
-    char ** files = argv + 2;
-    int pids [filesCount];
+    files_count = argc - 2;
+    char** files = argv + 2;
+    pids = malloc(sizeof(int) * files_count);
 
-    for (int i = 0; i < filesCount; i++){
-        pids[i] = grep(argv[1], files[i], i);
+
+    // Create grep processes. One per file.
+
+    for (int i = 0; i < files_count; i++) {
+        int pid = -1;
+        if ((pid = fork()) == 0) {
+            printf("grep #%d with pid %d for file %s\n", i, getpid(), files[i]);
+            if (execlp("grep", "grep", argv[1], files[i], NULL) < 0) {
+                perror("exec grep");
+                exit(10);
+            }
+        }
+
+        pids[i] = pid;
     }
 
+    if(signal(SIGALRM, timeout_handler) == SIG_ERR) {
+        perror("timeout handler");
+        return 10;
+    }
+
+    alarm(10);
+
+    // Many greps executing...
+
+    int status = 0;
     int found = 0;
-    int status;
-    int terminated_pid;
-    int pid_found = -1;
-
-    while (!found && (terminated_pid = wait(&status)) > 0){
-
-        // grep retorna 0 quando não encontra nada
-
-        if (WIFEXITED(status)){
-
-            switch (WEXITSTATUS(status)){
-
+    int pid = -1;
+    while (!found && (pid = wait(&status)) > 0) {
+        if (WIFEXITED(status)) {
+            switch (WEXITSTATUS(status)) {
                 case 0:
-                    printf("[process %d] found the word\n", terminated_pid);
+                    // grep found the word.
                     found = 1;
-                    pid_found = terminated_pid;
+                    printf("grep with pid %d found the word.\n", pid);
                     break;
-
                 case 1:
-                    printf("[process %d] word was not found\n", terminated_pid);
+                    // grep did not find the word.
+                    printf("grep with pid %d did not find the word.\n", pid);
                     break;
+            }
+        } 
+    }
 
-                default:
-                    break;
+    if (timeout) {
+        return 5;
+    }
+
+    // Few greps may be running...
+
+    if (!found)
+        return 1;
+    
+    for (int i = 0; i < files_count; i++) {
+        printf("Trying to kill grep with pid %d\n", pids[i]);
+        
+        if (pid != pids[i] && pids[i] > 0) { // pids[i] > 0 prevents kill(-1, ...)
+            kill(pids[i], SIGKILL);
+            
+            if (waitpid(pids[i], &status, 0) > 0) {
+                if (WIFEXITED(status)) {
+                    printf("grep %d finished.\n", pids[i]);
+                } else {
+                    printf("grep %d was killed.\n", pids[i]);
+                }
             }
         }
     }
 
-    if (found == 1){
+    free(pids);
 
-        for (int i = 0; i < filesCount; i++){
-
-            if (pids[i] != pid_found){ 
-                
-                printf("killing process %d\n", pids[i]);
-                // evitar a possibilidade de um kill -1
-                if (pids[i] > 0) kill(pids[i], SIGKILL);
-
-                // mostrar que o processo foi interrompido
-                waitpid(pids[i], &status, 0);
-                if (!WIFEXITED(status)) printf("process %d was interrupted\n", pids[i]);
-                else printf("process %d ended correctly already\n", pids[i]);
-            }
-        }
-    }
-
-    return !found;
+    return 0;
 }
-
-/*
-Testes:
-./a.out word file1 file2 file3 ...
-*/
