@@ -9,6 +9,13 @@
 #include <time.h>
 
 #define BUFFER_SIZE 1024
+#define SigConclude 34
+#define SigMaxExec 35
+#define SigMaxInac 36
+#define NELEMS(x) (sizeof(x) / sizeof((x)[0]))
+
+void maxExecHandlerSon(int signum);
+void maxInacHandlerSon(int signum);
 
 typedef struct instructions
 {
@@ -22,16 +29,25 @@ typedef struct instructions
 } * Instructions;
 
 Instructions tarefas;
+int maxExec = 18;
+int maxInac = 3;
 pid_t pidGlobal;
+int pidPipeConclude[2];
+int pidPipeAlarm[2];
+pid_t pidGrandSon;
+char pipeNumb[1024];
 
-ssize_t readln (int fildes, void* buffer, ssize_t numBytes){
+ssize_t readln(int fildes, void *buffer, ssize_t numBytes)
+{
 
     ssize_t res = 0;
     int i = 0;
 
-    while (i < numBytes && (res = read(fildes, &buffer[i], 1)) > 0){
+    while (i < numBytes && (res = read(fildes, &buffer[i], 1)) > 0)
+    {
 
-        if (((char*)buffer)[i] == '\n') return (i + 1);
+        if (((char *)buffer)[i] == '\n')
+            return (i + 1);
         i += res;
     }
 
@@ -97,15 +113,15 @@ void printInstructions(Instructions tarefas)
 {
     if (tarefas != NULL)
     {
-        fprintf(stderr,"Numero: %d   ", tarefas->n);
-        fprintf(stderr,"Estado: %d   ", tarefas->estado);
-        fprintf(stderr,"Task: %s   ", tarefas->task);
-        fprintf(stderr,"PID: %d\n", tarefas->pid);
+        fprintf(stderr, "Numero: %d   ", tarefas->n);
+        fprintf(stderr, "Estado: %d   ", tarefas->estado);
+        fprintf(stderr, "Task: %s   ", tarefas->task);
+        fprintf(stderr, "PID: %d\n", tarefas->pid);
         printInstructions(tarefas->next);
     }
     else
     {
-        fprintf(stderr,"Fim da Lista\n");
+        fprintf(stderr, "Fim da Lista\n");
     }
 }
 
@@ -193,7 +209,7 @@ int exec_pipes(char *cmds)
 
     int pipes[nCmd - 1][2];
     int status[nCmd];
-
+    int son;
     for (int i = 0; i < nCmd; i++)
     {
         if (i == 0)
@@ -203,31 +219,40 @@ int exec_pipes(char *cmds)
                 perror("Pipe não foi criado!");
                 return -1;
             }
-            switch (fork())
+            switch (son = fork())
             {
             case -1:
                 perror("Fork não foi efetuado!");
                 return -1;
             case 0:
+                signal(SIGALRM, maxInacHandlerSon);
+                alarm(maxInac);
                 // Código Primeiro Filho
                 close(pipes[i][0]);
                 dup2(pipes[i][1], 1); // ligar stdout do primeiro comando ao extremo de escrita do primeiro pipe
                 close(pipes[i][1]);
                 exec_command(exec_args[i]);
+                fprintf(stderr,"1");
                 _exit(0);
             default:
                 // Código Pai
+                pidGrandSon = son;
                 close(pipes[i][1]);
+                fprintf(stderr,"2");
+                wait(&status[i]);
+                fprintf(stderr,"3");
             }
         }
         else if (i == nCmd - 1)
         {
-            switch (fork())
+            switch (son = fork())
             {
             case -1:
                 perror("Fork não foi efetuado!");
                 return -1;
             case 0:
+                signal(SIGALRM, maxInacHandlerSon);
+                alarm(maxInac);
                 // Código Último Filho
                 dup2(pipes[i - 1][0], 0);
                 close(pipes[i - 1][0]);
@@ -235,7 +260,9 @@ int exec_pipes(char *cmds)
                 _exit(0);
             default:
                 // Código Pai
+                pidGrandSon = son;
                 close(pipes[i - 1][0]);
+                wait(&status[i]);
             }
         }
         else
@@ -245,12 +272,15 @@ int exec_pipes(char *cmds)
                 perror("Pipe não foi criado!");
                 return -1;
             }
-            switch (fork())
+            switch (son = fork())
             {
             case -1:
                 perror("Fork não foi efetuado!");
                 return -1;
             case 0:
+                fprintf(stderr,"4");
+                signal(SIGALRM, maxInacHandlerSon);
+                alarm(maxInac);
                 // Código Filhos do Meio
                 close(pipes[i][0]);
                 dup2(pipes[i][1], 1); // escreve para o pipe i
@@ -261,53 +291,17 @@ int exec_pipes(char *cmds)
                 _exit(0);
             default:
                 // Código Pai
+                pidGrandSon = son;
                 close(pipes[i][1]);
                 close(pipes[i - 1][0]);
+                wait(&status[i]);
             }
         }
-    }
-    for (int i = 0; i < nCmd; i++)
-    {
-        wait(&status[i]);
     }
 }
 
 
-void concludeInstructions(int fs[]){
-    char buffer[BUFFER_SIZE];
-
-    //int saved_stdout;
-    //saved_stdout = dup(1);
-
-
-    close(0);
-    close(fs[1]);
-    dup(fs[0]);
-
-    if (read(fs[0], buffer, BUFFER_SIZE))
-    {
-        fprintf(stderr,"PID: %s\n", buffer);
-        Instructions aux = tarefas;
-        while (aux != NULL)
-        {
-            if (aux->pid == atoi(buffer))
-            {
-                aux->estado = 0;
-                break;
-            }
-            else
-                aux = aux->next;
-        }
-        clearBuf;
-        
-    }
-    
-    //dup2(saved_stdout, 1);
-    //close(saved_stdout);
-
-}
-
-void interpretMessage(Instructions *tarefas, char *message, int fs[])
+void interpretMessage(Instructions *tarefas, char *message)
 {
     char *array[4];
     int i = 0;
@@ -323,17 +317,15 @@ void interpretMessage(Instructions *tarefas, char *message, int fs[])
     }
     array[i] = NULL;
 
-
     if (strcmp(array[0], "executar") == 0)
         *tarefas = addTarefa(*tarefas, array[1]);
-
-    
-
 
     pid_t son = fork();
     pidGlobal = son;
     if (son == 0)
     {
+        signal(SIGALRM, maxExecHandlerSon);
+        signal(SigMaxInac, maxInacHandlerSon);
         if (strcmp(array[0], "executar") == 0)
         {
             char pipeName[1024];
@@ -354,32 +346,13 @@ void interpretMessage(Instructions *tarefas, char *message, int fs[])
                 write(fd, stringTarefa, strlen(stringTarefa));
                 close(fd);
 
+                alarm(maxExec);
+                sprintf(pipeNumb, "%d\n", getpid());
+
                 exec_pipes(array[1]);
 
-                // int saved_stdout;
-                // saved_stdout = dup(1);
-
-                // close(fs[1]);  
-                // dup2(fs[0],0);
-                // close(fs[0]);
-
-                char error[1024];
-                sprintf(error, "%d\n", getpid());
-                // write(fs[1], error, strlen(error));
-                
-                close(fs[0]);
-                close(1);
-                dup(fs[1]);
-                write(1, error, strlen(error));
-
-                //dup2(saved_stdout, 1);
-                //close(saved_stdout);
-                //_exit(0);
-
-                
-                
-
-
+                write(pidPipeConclude[1], pipeNumb, strlen(pipeNumb));
+                kill(getppid(), SigConclude);
             }
             //fprintf(stderr,"%s %s %s\n",array[0],array[1],array[2]);
         }
@@ -414,23 +387,129 @@ void interpretMessage(Instructions *tarefas, char *message, int fs[])
             }
         }
         else
-            fprintf(stderr,"%s %s\n", array[0], array[1]);
+            fprintf(stderr, "%s %s\n", array[0], array[1]);
         _exit(0);
     }
     else
     {
-            if (strcmp(array[0], "executar") == 0) {
-                (*tarefas)->pid = son;
-                concludeInstructions(fs);
-            }
+        if (strcmp(array[0], "executar") == 0)
+        {
+            (*tarefas)->pid = son;
+            //concludeInstructions();
+        }
     }
 }
 
+void concludeInstructions(int signum)
+{
+    if (signum == SigConclude)
+    {
+        char buffer[BUFFER_SIZE];
+
+        if (readln(pidPipeConclude[0], buffer, BUFFER_SIZE))
+        {
+            fprintf(stderr, "PID: %s\n", buffer);
+            Instructions aux = tarefas;
+            while (aux != NULL)
+            {
+                if (aux->pid == atoi(buffer))
+                {
+                    aux->estado = 0;
+                    kill(aux->pid, SIGKILL);
+                    break;
+                }
+                else
+                    aux = aux->next;
+            }
+        }
+    }
+}
+
+void maxExecHandlerFather(int signum)
+{
+    if (signum == SigMaxExec)
+    {
+        char buffer[BUFFER_SIZE];
+        if (readln(pidPipeAlarm[0], buffer, BUFFER_SIZE))
+        {
+            fprintf(stderr,"MaxExec %s\n", buffer);
+            Instructions aux = tarefas;
+            while (aux != NULL)
+            {
+                if (aux->pid == atoi(buffer))
+                {
+                    aux->estado = 2;
+                    break;
+                }
+                else
+                    aux = aux->next;
+            }
+        }
+    }
+}
+
+void maxExecHandlerSon(int signum)
+{
+    // mata filhos
+    // manda mensagem no pipe para pai e signal para ler pipe e mudar estado
+    // SUICIDIO
+    if (signum == SIGALRM)
+    {
+        write(pidPipeAlarm[1], pipeNumb, strlen(pipeNumb));
+        kill(getppid(), SigMaxExec);
+        kill(pidGrandSon, SIGKILL);
+        kill(getpid(), SIGKILL);
+    }
+}
+
+void maxInacHandlerGrandFather(int signum)
+{
+    if (signum == SigMaxInac)
+    {
+        char buffer[BUFFER_SIZE];
+        if (readln(pidPipeAlarm[0], buffer, BUFFER_SIZE))
+        {
+            fprintf(stderr,"MaxInac %s\n", buffer);
+            Instructions aux = tarefas;
+            while (aux != NULL)
+            {
+                if (aux->pid == atoi(buffer))
+                {
+                    aux->estado = 1;
+                    break;
+                }
+                else
+                    aux = aux->next;
+            }
+        }
+    }
+}
+
+void maxInacHandlerFather(int signum)
+{
+    if (signum == SigMaxInac)
+    {
+        write(pidPipeAlarm[1], pipeNumb, strlen(pipeNumb));
+        kill(getppid(), SigMaxInac);
+        kill(pidGrandSon, SIGKILL);
+        kill(getpid(), SIGKILL);
+    }
+}
+
+void maxInacHandlerSon(int signum)
+{
+    fprintf(stderr, "\nteste\n");
+    if (signum == SIGALRM)
+        kill(getppid(), SigMaxInac);
+}
 
 int main(int argc, char const *argv[])
 {
-    int fs[2]; 
-    pipe(fs);
+    signal(SigConclude, concludeInstructions);
+    signal(SigMaxExec, maxExecHandlerFather);
+    signal(SigMaxInac, maxInacHandlerGrandFather);
+    pipe(pidPipeConclude);
+    pipe(pidPipeAlarm);
     int fd;
     int lineChars;
     char buffer[BUFFER_SIZE];
@@ -455,9 +534,9 @@ int main(int argc, char const *argv[])
             fprintf(stderr, "Fifo aberto para escrita!\n");
             lineChars = read(fd, buffer, BUFFER_SIZE);
             buffer[lineChars] = '\0';
-            fprintf(stderr,"%s", buffer);
-            interpretMessage(&tarefas, buffer, fs);
-            //concludeInstructions(fs);
+            fprintf(stderr, "%s", buffer);
+            interpretMessage(&tarefas, buffer);
+            //concludeInstructions(pidPipeConclude);
             printInstructions(tarefas);
         }
         close(fd);
