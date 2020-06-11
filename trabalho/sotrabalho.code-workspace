@@ -2,6 +2,12 @@
 	"folders": [
 		{
 			"path": "."
+		},
+		{
+			"path": "..\\tpv2"
+		},
+		{
+			"path": "D:\\repos\\LI3\\grupo61\\projC"
 		}
 	],
 	"settings": {}
