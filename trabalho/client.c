@@ -7,11 +7,12 @@
 #include <unistd.h> 
 #include <ctype.h>
 #include <time.h> 
-#include <unistd.h>
 
 
 #define MAX_LINE_SIZE 1024
 #define BUFFER_SIZE 1024
+
+int fd;
 
 //Funçãod e leitura de um pipe
 void readFromPipe(char pipeName[]) {
@@ -85,9 +86,8 @@ int notNumber(const char *number) {
 
 //Envia mensagem ao servidor
 void sendMessage(int qt, const char * args[], int pipeNumber) {
-    //Abre o ficheiro de escrita para o servidor
-    int fd = open("/tmp/fifo",O_WRONLY);
     char str[MAX_LINE_SIZE];
+    clearBuf(str);
     //Concatena os argumentos da funcao a executar
     for (int i = 0; i < qt; i++) {
         char strAux[256];
@@ -103,7 +103,6 @@ void sendMessage(int qt, const char * args[], int pipeNumber) {
     strcat(str,"\n");
     //Escreve no fifo para o servidor
     write(fd,str,strlen(str));
-    close(fd);
 }
 
 //Função de parse para enviar pedidos ao servidor
@@ -220,27 +219,28 @@ int main(int argc, char const *argv[])
     int i;
     char readbuf[BUFFER_SIZE];
     clearBuf(readbuf);
-
+    
+    //Abre o ficheiro de escrita para o servidor
+    fd = open("/tmp/fifo",O_WRONLY);
 
     if (argc==1) {
         //Shell
         ajuda(0);
 
         while(1) {
-        write(1, "argus$ ", 7);
-        fgets(readbuf, BUFFER_SIZE, stdin);
-        
+            write(1, "argus$ ", 7);
+            read(0, readbuf, BUFFER_SIZE);
+            
+            const char *argv[2];
+            argv[0] = strtok(readbuf, " \"\n");
+            argv[1] = strtok(NULL, "\"\n");
 
-        const char *argv[2];
-        argv[0] = strtok(readbuf, " \"\n");
-        argv[1] = strtok(NULL, "\"\n");
+            int argc = (argv[1]==NULL) ? 1 : 2;
 
-        int argc = (argv[1]==NULL) ? 1 : 2;
+            //Interpreta o comando
+            interpretaArgs(argc, argv, 0);
 
-        //Interpreta o comando
-        interpretaArgs(argc, argv, 0);
-
-        clearBuf(readbuf);
+            clearBuf(readbuf);
         }
     }
     //Linha de comandos
@@ -250,7 +250,8 @@ int main(int argc, char const *argv[])
         //Interpreta o comando
         interpretaArgs(argc-1, argv, 1);
     }
-
+    
+    close(fd);
 
     return 0;
     }

@@ -685,9 +685,11 @@ int main(int argc, char const *argv[])
             //Interpreta comando pedido
             interpretMessage(&tarefas, buffer);
             //Imprime Estrutura com as tarefas (Debug)
+            fprintf(stderr,"Tempo exec: %d\n",maxExec);
+            fprintf(stderr,"Tempo inac: %d\n",maxInac);
             printInstructions(tarefas);
+            close(fd);
         }
-        close(fd);
     }
 
     return 0;
