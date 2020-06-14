@@ -211,7 +211,7 @@ int exec_pipes(char *cmds)
             switch (son = fork())
             {
             case -1:
-                perror("Fork nÃ£o foi efetuado!");
+                perror("Fork nao foi efetuado!");
                 return -1;
             case 0:
                 //Cria sinais para terminar e executar o max inactividade
@@ -258,7 +258,7 @@ int exec_pipes(char *cmds)
                 close(logIDX);
                 _exit(0);
             default:
-                // CÃ³digo Pai
+                // Código Pai
                 pidSon = son;
                 close(pipes[i - 1][0]);
             }
@@ -288,7 +288,13 @@ int exec_pipes(char *cmds)
                 close(pipes[i][0]);
                 dup2(pipes[i][1], 1); // ligar stdout do primeiro comando ao extremo de escrita do primeiro pipe
                 close(pipes[i][1]);
-                exec_command(exec_args[i]);
+                //Executa o comando atual
+                if ((pidSon = fork()) == 0)
+                {
+                    signal(SigTerm, terminarHandler);
+                    exec_command(exec_args[i]);
+                }
+                wait(NULL);
                 _exit(0);
             default:
                 // Código Pai
@@ -321,7 +327,13 @@ int exec_pipes(char *cmds)
                 close(pipes[i][1]);
                 dup2(pipes[i - 1][0], 0);
                 close(pipes[i - 1][0]);
-                exec_command(exec_args[i]);
+                //Executa o comando atual
+                if ((pidSon = fork()) == 0)
+                {
+                    signal(SigTerm, terminarHandler);
+                    exec_command(exec_args[i]);
+                }
+                wait(NULL);
                 _exit(0);
             default:
                 // Código Pai
@@ -492,6 +504,7 @@ void interpretMessage(Instructions *tarefas, char *message)
 //Handler de concluir instrução
 void concludeInstructionsHandler(int signum)
 {
+    fprintf(stderr,"concludeInstructionsHandler\n");
     if (signum == SigConclude)
     {
         char buffer[BUFFER_SIZE];
@@ -519,6 +532,7 @@ void concludeInstructionsHandler(int signum)
 //Handler de max Execução para processo pai
 void maxExecHandlerFather(int signum)
 {
+    fprintf(stderr,"maxExecHandlerFather\n");
     if (signum == SigMaxExec)
     {
         char buffer[BUFFER_SIZE];
@@ -544,6 +558,7 @@ void maxExecHandlerFather(int signum)
 //Handler de max execução para processos filho
 void maxExecHandlerSon(int signum)
 {
+    fprintf(stderr,"maxExecHandlerSon\n");
     if (signum == SIGALRM)
     {
         // manda mensagem no pipe para pai e signal para ler pipe e mudar estado
@@ -558,6 +573,7 @@ void maxExecHandlerSon(int signum)
 //Handler de max inactividade para processo pai
 void maxInacHandlerGrandFather(int signum)
 {
+    fprintf(stderr,"maxInacHandlerGrandFather\n");
     if (signum == SigMaxInac)
     {
         char buffer[BUFFER_SIZE];
@@ -583,6 +599,7 @@ void maxInacHandlerGrandFather(int signum)
 //Handler de max inactividade para processo filho
 void maxInacHandlerFather(int signum)
 {
+    fprintf(stderr,"maxInacHandlerFather\n");
     if (signum == SigMaxInac)
     {
         // manda mensagem no pipe para pai e signal para ler pipe e mudar estado
@@ -597,6 +614,7 @@ void maxInacHandlerFather(int signum)
 //Handler de max inactividade para processos netos
 void maxInacHandlerSon(int signum)
 {
+    fprintf(stderr,"maxInacHandlerSon\n");
     if (signum == SIGALRM)
     {
         int pid = getpid();
@@ -610,6 +628,7 @@ void maxInacHandlerSon(int signum)
 //Handler de terminar
 void terminarHandler(int signum)
 {
+    fprintf(stderr,"terminarHandle\n");
     if (signum == SigTerm)
     {
         //Mata os processos envolvido na tarefa

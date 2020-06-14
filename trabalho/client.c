@@ -58,9 +58,9 @@ int ajuda(int method) {
     write(1,"tempo-execucao segs\n",20);
     write(1,"executar \"comando1 args | comando2 | comando3\"\n",47);
     write(1,"listar\n",7);
-    write(1,"terminar nTar\n",14);
+    write(1,"terminar nTarefa\n",17);
     write(1,"historico\n",10);
-    write(1,"output tarefa\n",14);
+    write(1,"output nTarefa\n",15);
     write(1,"ajuda\n",6);
     write(1,"exit\n\n",6);
     }
@@ -69,9 +69,9 @@ int ajuda(int method) {
     write(1,"tempo-execucao: -m segs\n",24);
     write(1,"executar: -e \"comando1 args | comando2 | comando3\"\n",51);
     write(1,"listar: -l\n",11);
-    write(1,"terminar: -t nTar\n",18);
+    write(1,"terminar: -t nTarefa\n",21);
     write(1,"historico: -r\n",14);
-    write(1,"output: -o tarefa\n",18);
+    write(1,"output: -o nTarefa\n",19);
     write(1,"ajuda: -h\n\n",11);
     }
 }
