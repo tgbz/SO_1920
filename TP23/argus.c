@@ -1,16 +1,7 @@
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
-#include <sys/types.h> 
-#include <sys/stat.h>
-#include <fcntl.h>
-#include <unistd.h> 
+#include "argus.h"
 #include <ctype.h>
-#include <time.h> 
 
 
-#define MAX_LINE_SIZE 1024
-#define BUFFER_SIZE 1024
 
 int fd;
 
@@ -109,7 +100,7 @@ void sendMessage(int qt, const char * args[], int pipeNumber) {
 void interpretaArgs(int qt, const char  *args[], int method) {
     pid_t pid = getpid();
     char pipeName[1024];
-    sprintf(pipeName,"/tmp/%d",pid);
+    sprintf(pipeName,"%d",pid);
 
     //Tempo de inatividade
     if ((method==0 && strcmp(args[0],"tempo-inactividade")==0)  || (method==1 && strcmp(args[0],"-i")==0)) {
@@ -221,7 +212,7 @@ int main(int argc, char const *argv[])
     clearBuf(readbuf);
     
     //Abre o ficheiro de escrita para o servidor
-    fd = open("/tmp/fifo",O_WRONLY);
+    fd = open(FIFO_NAME,O_WRONLY);
 
     if (argc==1) {
         //Shell

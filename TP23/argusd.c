@@ -1,21 +1,12 @@
-#include <stdio.h>
-#include <string.h>
-#include <sys/types.h>
-#include <sys/stat.h>
-#include <fcntl.h>
-#include <unistd.h>
-#include <stdlib.h>
+#include"argus.h"
 #include <sys/wait.h>
-#include <time.h>
 #include <signal.h>
 
-#define BUFFER_SIZE 1024
-#define MAX_PIPES 1024
+
 #define SigConclude 34
 #define SigMaxExec 35
 #define SigMaxInac 36
 #define SigTerm 37
-#define NELEMS(x) (sizeof(x) / sizeof((x)[0]))
 
 void maxInacHandlerSon(int signum);
 void maxExecHandlerSon(int signum);
@@ -377,7 +368,7 @@ void interpretMessage(Instructions *tarefas, char *message)
             signal(SigMaxInac, maxInacHandlerFather);
             signal(SigTerm, terminarHandler);
             char pipeName[1024];
-            sprintf(pipeName, "/tmp/%s", array[2]);
+            sprintf(pipeName, "%s", array[2]);
             //Abre o pipe com nome para responder ao cliente
             if ((fd = open(pipeName, O_WRONLY)) == -1)
             {
@@ -415,7 +406,7 @@ void interpretMessage(Instructions *tarefas, char *message)
     else if (strcmp(array[0], "listar") == 0)
     {
         char pipeName[1024];
-        sprintf(pipeName, "/tmp/%s", array[1]);
+        sprintf(pipeName, "%s", array[1]);
         //Abre o pipe com nome para responder ao cliente
         if ((fd = open(pipeName, O_WRONLY)) == -1)
         {
@@ -432,7 +423,7 @@ void interpretMessage(Instructions *tarefas, char *message)
     else if (strcmp(array[0], "historico") == 0)
     {
         char pipeName[1024];
-        sprintf(pipeName, "/tmp/%s", array[1]);
+        sprintf(pipeName, "%s", array[1]);
         //Abre o pipe com nome para responder ao cliente
         if ((fd = open(pipeName, O_WRONLY)) == -1)
         {
@@ -485,7 +476,7 @@ void interpretMessage(Instructions *tarefas, char *message)
     {
         int nTarefa = atoi(array[1]);
         char pipeName[1024];
-        sprintf(pipeName, "/tmp/%s", array[2]);
+        sprintf(pipeName, "%s", array[2]);
         //Abre o pipe com nome para responder ao cliente
         if ((fd = open(pipeName, O_WRONLY)) == -1)
         {
@@ -681,7 +672,7 @@ int main(int argc, char const *argv[])
     char buffer[BUFFER_SIZE];
 
     //Cria o pipe com nome de comunicacao entre cliente servidor
-    if (mkfifo("/tmp/fifo", 0666) == -1)
+    if (mkfifo(FIFO_NAME, 0666) == -1)
     {
         perror("mkfifo error");
     }
@@ -689,7 +680,7 @@ int main(int argc, char const *argv[])
     while (1)
     {
         //Abre o pipe com nome de comunicacao entre cliente servidor
-        if ((fd = open("/tmp/fifo", O_RDWR)) == -1)
+        if ((fd = open(FIFO_NAME, O_RDWR)) == -1)
         {
             perror("Erro ao abrir fifo");
             return -1;
